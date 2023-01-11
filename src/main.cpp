@@ -74,8 +74,9 @@ public:
 
       Client client(client_sock);
       clients_.insert({client.id(), client});
-//      Broadcast(client, "[R]: client with " + client.id() + " connected.");
-      Broadcast(client, "[INFO]: " + client.name() + " connected.");
+
+      BroadcastExcept(client, "[INFO]: " + client.name() + " connected.");
+      BroadcastOnly(client, InitialConnectionPayload());
 
       std::thread t(&MessageRouter::HandleClient, this, client);
       t.detach();
@@ -83,12 +84,33 @@ public:
   }
 
 private:
-  void Broadcast(const Client& sender, const std::string& message) {
-    for (const auto& [id, client] : clients_) {
+  [[nodiscard]] std::string InitialConnectionPayload() const {
+    std::string payload("{\n");
+    for (const auto& [id, c] : clients_) {
+      payload += "\t\"" + id + "\"" + ",\n";
+    }
+    payload.erase(payload.end() - 2);
+    payload += "}";
+
+    return "[INITIAL MESSAGE]: Welcome. Available clients:\n" + payload;
+  }
+
+  void Broadcast(const std::string& message) {
+    for (const auto& [_, client] : clients_) {
+      send(client.sock(), message.c_str(), message.size(), 0);
+    }
+  }
+
+  void BroadcastExcept(const Client& sender, const std::string& message) {
+    for (const auto& [_, client] : clients_) {
       if (client.id() != sender.id()) {
         send(client.sock(), message.c_str(), message.size(), 0);
       }
     }
+  }
+
+  void BroadcastOnly(const Client& client, const std::string& message) {
+    send(client.sock(), message.c_str(), message.size(), 0);
   }
 
   void HandleClient(const Client& client) {
@@ -103,15 +125,13 @@ private:
       std::stringstream message_stream(buffer);
       std::string message;
       while (std::getline(message_stream, message)) {
-//        Broadcast(client, "[M]: " + client.id() + ", " + message);
-        Broadcast(client, "[" + client.name() + "]: " + message);
+        BroadcastExcept(client, "[" + client.name() + "]: " + message);
       }
     }
 
     std::cout << "Client disconnected: " << client.name() << "|" << client.id() << std::endl;
     clients_.erase(client.id());
-//    Broadcast(client, "[R]: client with " + client.id() + " disconnected.");
-    Broadcast(client, "[INFO]: " + client.name() + " disconnected.");
+    BroadcastExcept(client, "[INFO]: " + client.name() + " disconnected.");
     close(client.sock());
   }
 
