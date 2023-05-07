@@ -1,133 +1,81 @@
 #include <iostream>
-#include <map>
-#include <string>
-#include <vector>
-#include <sstream>
-#include <algorithm>
-#include <functional>
-
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
-#include <uuid/uuid.h>
-#include <thread>
+#include <unistd.h>
+#include <cstring>
 
-const int kBufferSize = 1024;
+int main(int argc, char** argv) {
+  int server_file_descriptor;
+  int new_socket; // stands for incoming client connection
+  int value_read; // stands for value read from newSocket client
 
-class Client {
-public:
-  Client(int sock) : sock_(sock) {
-    uuid_t uuid;
-    uuid_generate(uuid);
-    char id_str[37];
-    uuid_unparse(uuid, id_str);
-    id_ = id_str;
-    name_ = "Guest[" + std::to_string(sock) + "]";
+  struct sockaddr_in address;
+  int opt = 1;
+  int address_len = sizeof(address);
+  char buffer[1024] = {0};
+
+  // Construct Socket File Descriptor
+  server_file_descriptor = socket(AF_INET, SOCK_STREAM, 0);
+  if (server_file_descriptor == 0) {
+    perror("[ERROR]: Failed to create socket file descriptor.");
+    exit(EXIT_FAILURE);
   }
 
-  int sock() const { return sock_; }
-  const std::string& id() const { return id_; }
-  const std::string& name() const { return name_; }
-
-private:
-  int sock_;
-  std::string id_;
-  std::string name_;
-};
-
-class MessageRouter {
-public:
-  MessageRouter(int port) {
-    sock_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_ < 0) {
-      std::cerr << "Error creating socket" << std::endl;
-      exit(1);
-    }
-
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(port);
-
-    if (bind(sock_, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0) {
-      std::cerr << "Error binding socket" << std::endl;
-      exit(1);
-    }
-
-    listen(sock_, 5);
+  // Set Socket Options
+  int set_sock_opts_result = setsockopt(
+      server_file_descriptor,
+      SOL_SOCKET,
+      SO_REUSEADDR | SO_REUSEPORT,
+      &opt,
+      sizeof(opt)
+      );
+  if (set_sock_opts_result) {
+    perror("[ERROR]: Failed to set socket options.");
+    exit(EXIT_FAILURE);
   }
 
-  [[noreturn]] void Run() {
-    while (true) {
-      struct sockaddr_in client_addr{};
-      socklen_t client_addr_size = sizeof(client_addr);
-      int client_sock = accept(sock_, (struct sockaddr*) &client_addr, &client_addr_size);
+  // Set Address Info
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = INADDR_ANY;
+  address.sin_port = htons(8080);
 
-      if (client_sock < 0) {
-        std::cerr << "Error accepting connection" << std::endl;
-        continue;
-      }
-
-      std::cout << "New client connected" << std::endl;
-
-      Client client(client_sock);
-      clients_.insert({client.id(), client});
-//      Broadcast(client, "[R]: client with " + client.id() + " connected.");
-      Broadcast(client, "[INFO]: " + client.name() + " connected.");
-
-      std::thread t(&MessageRouter::HandleClient, this, client);
-      t.detach();
-    }
+  // Bind the socket to Address/Port
+  int bind_result = bind(server_file_descriptor, (struct sockaddr*) &address, sizeof(address));
+  if (bind_result < 0) {
+    perror("[ERROR]: Failed to bind socket.");
+    exit(EXIT_FAILURE);
   }
 
-private:
-  void Broadcast(const Client& sender, const std::string& message) {
-    for (const auto& [id, client] : clients_) {
-      if (client.id() != sender.id()) {
-        send(client.sock(), message.c_str(), message.size(), 0);
-      }
-    }
+  // Start listening for connections
+  int listen_result = listen(server_file_descriptor, 3); // max 3
+  if (listen_result < 0) {
+    perror("[ERROR]: Error while listening for incoming connections.");
+    exit(EXIT_FAILURE);
   }
 
-  void HandleClient(const Client& client) {
-    char buffer[kBufferSize];
-    while (true) {
-      int bytes_received = recv(client.sock(), buffer, kBufferSize - 1, 0);
-      if (bytes_received <= 0) {
-        break;
-      }
-      buffer[bytes_received] = '\0';
-
-      std::stringstream message_stream(buffer);
-      std::string message;
-      while (std::getline(message_stream, message)) {
-//        Broadcast(client, "[M]: " + client.id() + ", " + message);
-        Broadcast(client, "[" + client.name() + "]: " + message);
-      }
-    }
-
-    std::cout << "Client disconnected: " << client.name() << "|" << client.id() << std::endl;
-    clients_.erase(client.id());
-//    Broadcast(client, "[R]: client with " + client.id() + " disconnected.");
-    Broadcast(client, "[INFO]: " + client.name() + " disconnected.");
-    close(client.sock());
+  // Accept Incoming connections
+  new_socket = accept(server_file_descriptor, (struct sockaddr*) &address, (socklen_t*) &address_len);
+  if (new_socket < 0) {
+    perror("[ERROR]: Error while accepting incoming connection.");
+    exit(EXIT_FAILURE);
   }
 
-  int sock_;
-  std::map<std::string, Client> clients_;
-};
+  while (true) {
+    // Read data from client
+    value_read = read(new_socket, buffer, 1024);
+    std::cout << "[CLIENT MESSAGE]: " << buffer << std::endl;
 
-int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    std::cerr << "Usage: router PORT" << std::endl;
-    return 1;
+    // Write data to client
+    const char *sample_server_message = "this is server message!";
+    send(new_socket, sample_server_message, strlen(sample_server_message), 0);
+
+    if (buffer[0] == 'Q')
+      break;
   }
 
-  int port = std::stoi(argv[1]);
-  MessageRouter router(port);
-  router.Run();
+  // Close allocations
+  close(new_socket);
+  close(server_file_descriptor);
 
   return 0;
 }
