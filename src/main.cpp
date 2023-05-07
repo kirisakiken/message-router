@@ -60,13 +60,18 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
 
-  // Read data from client
-  value_read = read(new_socket, buffer, 1024);
-  std::cout << "[CLIENT MESSAGE]: " << buffer << std::endl;
+  while (true) {
+    // Read data from client
+    value_read = read(new_socket, buffer, 1024);
+    std::cout << "[CLIENT MESSAGE]: " << buffer << std::endl;
 
-  // Write data to client
-  const char *sample_server_message = "this is server message!";
-  send(new_socket, sample_server_message, strlen(sample_server_message), 0);
+    // Write data to client
+    const char *sample_server_message = "this is server message!";
+    send(new_socket, sample_server_message, strlen(sample_server_message), 0);
+
+    if (buffer[0] == 'Q')
+      break;
+  }
 
   // Close allocations
   close(new_socket);
