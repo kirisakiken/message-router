@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <cstring>
 #include <arpa/inet.h>
-
 #include <vector>
 
 const int opt = 1;
@@ -19,7 +18,7 @@ int main(int argc, char** argv) {
   char buffer[1025];
 
   // mock server message
-  char* message = "echo test\n";
+  char* message = "(Server): Connected.\n";
 
   // init socket config
   struct sockaddr_in address;
@@ -112,7 +111,7 @@ int main(int argc, char** argv) {
       size_t message_len = strlen(message);
       size_t send_result = send(new_socket, message, message_len, 0);
       if (send_result != message_len)
-        std::cout << "[ERROR]: Error sending welcome message" << std::endl; // maybe conti?
+        std::cout << "[WARNING]: Error sending welcome message" << std::endl;
       std::cout << "[INFO]: Sent welcome message successfully" << std::endl;
 
       // store incoming connection
@@ -140,11 +139,16 @@ int main(int argc, char** argv) {
             sd = 0;
             continue;
           }
-        }
 
-        // echo incoming message
-        buffer[val_read] = '\0';
-        send(sd, buffer, strlen(buffer), 0); // TODO: send result check (health check)
+          // echo incoming message to all except sender
+          buffer[val_read] = '\0';
+          for (int& c : client_sockets) {
+            if (c == sd)
+              continue;
+
+            send(c, buffer, strlen(buffer), 0); // TODO: send result check (health check)
+          }
+        }
       }
     }
   }
