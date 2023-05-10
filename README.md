@@ -1,6 +1,17 @@
-# message-router
+# Message Router
 
-Example message structure;
+Message Router is a service which has capabilities such as accepting client connections,
+listening messages from clients, sending messages to clients.
+
+## Behavours;
+1. `OnClientConnect`: send welcome packet to client
+2. `OnClientDisconect`: notify other clients
+3. `OnClientMessageReceived`: broadcast received message to other clients
+
+---
+
+### Usage examples;
+Example message structure (processor server side implementation);
 
 ```json5
 {
@@ -61,4 +72,4 @@ E.g;
 ```
 
 CHECKLIST (MESSAGE STRUCTURE);
-- header to be implemented
+- header examples
