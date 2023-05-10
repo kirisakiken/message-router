@@ -71,5 +71,12 @@ E.g;
 }
 ```
 
+ROADMAP;
+1. OOP structure and SOLID refactor. (optional until 4)
+2. Dedicated processor server. Meaning that this router may be used as transaction gateway.
+3. After 2, implementation of message rules. Meaning that processor server may dictate which message(s) should be sent to which client(s).
+4. UDP implementation.
+5. After 4, multi thread implementation to run TCP/UDP connections at the same time.
+
 CHECKLIST (MESSAGE STRUCTURE);
 - header examples
