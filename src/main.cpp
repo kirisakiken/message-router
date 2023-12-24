@@ -6,8 +6,13 @@
 #include <arpa/inet.h>
 #include <vector>
 
+#include <unordered_map>
+
 const int opt = 1;
 const int max_clients = 30;
+
+// <socket_descriptor, "client_ip:port">
+std::unordered_map<int, std::string> client_ip_map{};
 
 int main(int argc, char** argv) {
   int master_socket, client_sockets[max_clients];
@@ -21,7 +26,7 @@ int main(int argc, char** argv) {
   char* message = "(Server): Connected.\n";
 
   // init socket config
-  struct sockaddr_in address;
+  struct sockaddr_in address{};
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(8080);
@@ -107,6 +112,12 @@ int main(int argc, char** argv) {
       std::cout << "[INFO]: Client connected: socket file descriptor: " << new_socket;
       std::cout << " IP: " << inet_ntoa(address.sin_addr) << " PORT: " << ntohs(address.sin_port) << std::endl;
 
+      std::string ip = inet_ntoa(address.sin_addr);
+      std::string port = std::to_string(ntohs(address.sin_port));
+
+      // store client info in client_ip_map
+      client_ip_map[new_socket] = std::string(ip + ":" + port);
+
       // welcome message
       size_t message_len = strlen(message);
       size_t send_result = send(new_socket, message, message_len, 0);
@@ -135,6 +146,9 @@ int main(int argc, char** argv) {
             std::cout << "[INFO]: Client disconnected. IP: " << inet_ntoa(address.sin_addr);
             std::cout << " PORT: " << ntohs(address.sin_port) << std::endl;
 
+            // remove client from client_ip_map
+            client_ip_map.erase(sd);
+
             close(sd);
             sd = 0;
             continue;
@@ -142,11 +156,12 @@ int main(int argc, char** argv) {
 
           // echo incoming message to all except sender
           buffer[val_read] = '\0';
-          for (int& c : client_sockets) {
-            if (c == sd)
+          std::cout << "[INFO]: " << client_ip_map[sd] << ", sending payload: " << buffer << std::endl;
+          for (int& client_socket : client_sockets) {
+            if (client_socket == sd)
               continue;
 
-            send(c, buffer, strlen(buffer), 0); // TODO: send result check (health check)
+            send(client_socket, buffer, strlen(buffer), 0); // TODO: send result check (health check)
           }
         }
       }

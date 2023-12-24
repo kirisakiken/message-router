@@ -3,6 +3,17 @@
 Message Router is a service which has capabilities such as accepting client connections,
 listening messages from clients, sending messages to clients.
 
+## Build & Test
+
+- `~/message-router$ cmake . -B build`
+- `~/message-router$ cd build`
+- `~/message-router/build$ make`
+- `~/message-router/build$ ./message_router`
+- Open up another terminals that will work as clients
+- `~/message-router$ cd examples`
+- `~/message-router/examples$ python3 client.py`
+- Enter messages from client terminals
+
 ## Behavours;
 1. `OnClientConnect`: send welcome packet to client
 2. `OnClientDisconect`: notify other clients
